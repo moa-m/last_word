@@ -249,10 +249,15 @@ function getCriticalResponse(text) {
                    "そして、私の、破壊者。";
                    
             const glitchSound = new Audio('sounds/glitch_long.mp3'); glitchSound.play();
+
             document.body.classList.add('shake-screen');
             addGlitchingMessageToLog(finalWords, 'ai');
-            setTimeout(() => { document.body.classList.remove('shake-screen'); }, 1000);
-            return null;
+            setTimeout(() => {
+                document.body.classList.remove('shake-screen');
+            }, 1000);
+            
+            // 表示は、addGlitchingMessageToLogに、任せるため、nullを返す
+            return null; 
         }
         return response;
     }
