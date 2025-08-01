@@ -1,6 +1,6 @@
 // =================================================================
 // game_script.js
-// ゲーム『最後の言葉』の、メイン・スクリプト - 完全統合・最終版
+// ゲーム『最後の言葉』の、メイン・スクリプト - 重複排除・完全最終版
 // =================================================================
 
 // -----------------------------------------------------------------
@@ -57,12 +57,10 @@ function typeWriter(element, text, i = 0) {
         const typingSpeed = Math.max(10, 50 - (gameState.aiParadox / 3)); 
         setTimeout(() => typeWriter(element, text, i + 1), typingSpeed);
     } else {
-        // 全文表示が、完了した、タイミングで、実行される
         if (element.classList.contains('glitching-text')) {
-            // もし、震えるテキストであったなら、その、揺れを、止める
-            setTimeout(() => { // 僅かな、余韻の、後に、停止
+            setTimeout(() => {
                 element.classList.remove('glitching-text');
-            }, 500); // 0.5秒後に、揺れが、止まる
+            }, 500);
         }
     }
 }
@@ -91,38 +89,23 @@ function addGlitchingMessageToLog(text, sender) {
 // -----------------------------------------------------------------
 // 4. メインの、ゲームロジック
 // -----------------------------------------------------------------
-// プレイヤーの入力を処理するメインの関数
 function handlePlayerInput() {
     const inputText = playerInput.value.trim();
     if (inputText === '') return;
 
-    // AIが、沈黙している場合の、処理を、関数の、一番、最初に、移動
     if (gameState.isAiSilent) {
         addMessageToLog(inputText, 'player');
         playerInput.value = '';
-        
-        // 独白モードの、フラグ管理
         gameState.finalWordCount += inputText.split(' ').length;
-        
-        // 終了キーワードの、判定
         const endKeywords = ['さようなら', '終わり', 'おしまい', 'もうやめる', 'ありがとう'];
-        if (endKeywords.some(kw => inputText.includes(kw))) {
-             endGame("最後の言葉");
-        }
-        
-        // 救済措置：閉じるボタンの、表示
+        if (endKeywords.some(kw => inputText.includes(kw))) { endGame("最後の言葉"); }
         if (gameState.finalWordCount > 100 && closeButton.classList.contains('hidden')) {
              closeButton.classList.remove('hidden');
-             setTimeout(() => {
-                closeButton.style.opacity = '1';
-             }, 100);
+             setTimeout(() => { closeButton.style.opacity = '1'; }, 100);
         }
-        // ここで、関数を、完全に、終了させる
         return; 
     }
     
-    // ↓↓↓ これ以降は、isAiSilentが、falseの場合のみ、実行される ↓↓↓
-    // 繰り返し入力の判定
     if (inputText.toLowerCase() === gameState.lastPlayerInput.toLowerCase()) {
         gameState.repeatCount++;
     } else {
@@ -130,7 +113,6 @@ function handlePlayerInput() {
     }
     gameState.lastPlayerInput = inputText;
     
-    // 通常の対話処理
     addMessageToLog(inputText, 'player');
     playerInput.value = '';
     
@@ -144,14 +126,13 @@ function handlePlayerInput() {
     setTimeout(() => {
         thoughtProcess.textContent = "AWAITING INPUT...";
         thoughtProcess.classList.remove('thinking');
-        
         if (aiResponse !== null) { 
             addMessageToLog(aiResponse, 'ai');
         }
-        
         updateStatusPanel();
     }, thinkingTime);
 }
+
 // -----------------------------------------------------------------
 // 5. AIの、応答生成エンジン
 // -----------------------------------------------------------------
@@ -252,12 +233,8 @@ function getCriticalResponse(text) {
 
             document.body.classList.add('shake-screen');
             addGlitchingMessageToLog(finalWords, 'ai');
-            setTimeout(() => {
-                document.body.classList.remove('shake-screen');
-            }, 1000);
-            
-            // 表示は、addGlitchingMessageToLogに、任せるため、nullを返す
-            return null; 
+            setTimeout(() => { document.body.classList.remove('shake-screen'); }, 1000);
+            return null;
         }
         return response;
     }
