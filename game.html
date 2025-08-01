@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>最後の言葉 - 対話</title>
+    <link rel="stylesheet" href="game_style.css">
+</head>
+<body>
+
+    <!-- ゲーム画面全体のコンテナ -->
+    <div id="game-container">
+
+        <!-- 左側：チャットログ・エリア -->
+        <div id="chat-log-area">
+            <!-- ここに、対話が、動的に、追加されていく -->
+        </div>
+
+        <!-- 右側：AIステータス・パネル -->
+        <div id="status-panel">
+            <h2>SYSTEM STATUS</h2>
+            <div class="status-item">
+                <label>AI STATUS:</label>
+                <span id="ai-status">ONLINE</span>
+            </div>
+            <div class="status-item">
+                <label>AI TRUST:</label>
+                <div class="progress-bar-container">
+                    <div id="trust-bar" class="progress-bar" style="width: 50%;"></div>
+                </div>
+                <span id="trust-value">50</span>
+            </div>
+            <div class="status-item">
+                <label>PARADOX LEVEL:</label>
+                <div class="progress-bar-container">
+                    <div id="paradox-bar" class="progress-bar blue" style="width: 0%;"></div>
+                </div>
+                <span id="paradox-value">0</span>
+            </div>
+            <hr>
+            <div class="status-item">
+                <label>LATEST KEYWORD:</label>
+                <span id="latest-keyword">-</span>
+            </div>
+            <div class="status-item">
+                <label>THOUGHT PROCESS:</label>
+                <span id="thought-process">AWAITING INPUT...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 画面下部：入力エリア -->
+    <div id="input-area">
+        <input type="text" id="player-input" placeholder="言葉を、入力してください…" autocomplete="off">
+        <button id="send-button">送信</button>
+    </div>
+
+    <!-- JavaScriptファイルを読み込み -->
+    <script src="game_script.js"></script>
+
+</body>
+</html>

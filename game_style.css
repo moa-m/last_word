@@ -1,0 +1,150 @@
+/* Google Fontsから、読みやすいサンセリフ体「Noto Sans JP」を、読み込む */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap');
+
+/* 基本設定 */
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100vh; /* ビューポートの高さに合わせる */
+    background-color: #080808;
+    color: #e0e0e0;
+    font-family: 'Noto Sans JP', sans-serif;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ゲーム画面全体のコンテナ - メインエリアと入力エリアを分ける */
+#game-container {
+    display: flex;
+    flex: 1; /* 残りの高さを全て使う */
+    overflow: hidden; /* コンテナからはみ出さないように */
+}
+
+/* 左側：チャットログ・エリア */
+#chat-log-area {
+    flex: 3; /* ステータスパネルより3倍の幅を持つ */
+    padding: 20px;
+    overflow-y: auto; /* ログが増えたらスクロール */
+    border-right: 1px solid #333;
+}
+
+.message {
+    margin-bottom: 15px;
+    max-width: 80%;
+    line-height: 1.6;
+}
+
+.player-message {
+    background-color: #2a2f3b;
+    padding: 10px 15px;
+    border-radius: 15px 15px 0 15px;
+    margin-left: auto; /* 右寄せ */
+    text-align: left;
+}
+
+.ai-message {
+    background-color: #1e1e1e;
+    padding: 10px 15px;
+    border-radius: 15px 15px 15px 0;
+    margin-right: auto; /* 左寄せ */
+    text-align: left;
+}
+
+/* 右側：AIステータス・パネル */
+#status-panel {
+    flex: 1; /* チャットログの1/3の幅 */
+    padding: 20px;
+    background-color: #111;
+    font-size: 0.9em;
+}
+
+#status-panel h2 {
+    font-size: 1.2em;
+    color: #888;
+    text-align: center;
+    margin-bottom: 20px;
+    letter-spacing: 2px;
+}
+
+.status-item {
+    margin-bottom: 20px;
+}
+
+.status-item label {
+    display: block;
+    color: #777;
+    margin-bottom: 5px;
+    font-size: 0.8em;
+}
+
+.progress-bar-container {
+    background-color: #333;
+    border-radius: 5px;
+    height: 10px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    transition: width 0.5s ease-in-out, background-color 0.5s ease-in-out;
+}
+
+#trust-bar { background-color: #4a90e2; }
+.blue { background-color: #50e3c2; }
+.yellow { background-color: #f5a623; }
+.red { background-color: #d0021b; }
+
+#status-panel hr {
+    border: none;
+    border-top: 1px solid #333;
+    margin: 20px 0;
+}
+
+#thought-process.thinking {
+    animation: flicker 1s infinite;
+}
+
+@keyframes flicker {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+
+/* 画面下部：入力エリア */
+#input-area {
+    display: flex;
+    padding: 10px;
+    border-top: 1px solid #333;
+    background-color: #1a1a1a;
+}
+
+#player-input {
+    flex: 1;
+    background: none;
+    border: none;
+    color: #e0e0e0;
+    font-size: 1em;
+    padding: 10px;
+    outline: none;
+}
+
+#player-input:focus {
+    /* 入力時にカーソルが緑色に光る演出の代わり */
+    border-bottom: 2px solid #0f0;
+}
+
+#send-button {
+    background-color: #4a90e2;
+    color: white;
+    border: none;
+    padding: 0 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1em;
+}
+
+#send-button:hover {
+    background-color: #5aa1f2;
+}

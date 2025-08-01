@@ -1,0 +1,117 @@
+/* Google Fontsから「Noto Serif JP」を読み込む */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300&display=swap');
+
+/* 基本設定 */
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* 背景の設定 */
+#background {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(ellipse 80% 70% at 50% 80%, #181a1d 0%, #020203 100%);
+    z-index: -1;
+}
+
+/* タイトル画面全体のコンテナ */
+#title-screen {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    cursor: default;
+}
+
+/* ラップトップのコンテナ */
+#laptop-container {
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+#laptop-container:hover {
+    transform: scale(1.015);
+}
+
+/* ラップトップ画像 - サイズを調整 */
+#laptop-image {
+    /* ★★★ 修正点：画像サイズを小さくする ★★★ */
+    width: 50vw; 
+    max-width: 850px; /* 最大サイズも少し小さく */
+    height: auto;
+    -webkit-mask-image: radial-gradient(ellipse 60% 55% at 50% 50%, black 35%, transparent 100%);
+    mask-image: radial-gradient(ellipse 60% 55% at 50% 50%, black 35%, transparent 100%);
+}
+
+/* ★★★ laptop-glow は、ここから、完全に、削除しました ★★★ */
+
+
+/* タイトルロゴ - デジタルノイズ演出を実装 */
+#title-logo {
+    font-family: 'Noto Serif JP', serif;
+    font-size: clamp(2.5rem, 5.5vw, 4.2rem); /* サイズを微調整 */
+    font-weight: 300;
+    color: #d0d0d0;
+    margin-top: 30px;
+    letter-spacing: 0.25em; /* 文字間をさらに広げ、余白を強調 */
+    position: relative; /* 疑似要素を配置するために必要 */
+    animation: glitch-scanline 15s infinite linear; /* 背景に走査線のような効果 */
+    transition: text-shadow 0.1s; /* クリック時の変化を滑らかに */
+}
+
+/* ★★★ 新規追加：テキストの揺らぎを、疑似要素を使って、表現 ★★★ */
+#title-logo::before,
+#title-logo::after {
+    content: '最後の言葉'; /* ロゴと同じテキストをコピー */
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: inherit; /* 背景色を親要素から継承 */
+    overflow: hidden;
+}
+
+#title-logo::before {
+    /* 赤色の、ずれた、ゴーストを生成 */
+    color: #ff5555;
+    animation: glitch-1 2s infinite cubic-bezier(0.25, 0.46, 0.45, 0.94) alternate-reverse;
+}
+
+#title-logo::after {
+    /* 青色（シアン）の、ずれた、ゴーストを生成 */
+    color: #55ffff;
+    animation: glitch-2 3s infinite cubic-bezier(0.25, 0.46, 0.45, 0.94) alternate-reverse;
+}
+
+
+/* ★★★ 新規追加：デジタルノイズの、アニメーション定義 ★★★ */
+@keyframes glitch-1 {
+    0% { clip-path: inset(45% 0 50% 0); transform: translate(-0.05em, 0.025em); opacity: 0.8; }
+    100% { clip-path: inset(5% 0 90% 0); transform: translate(0.05em, -0.025em); opacity: 0.6; }
+}
+@keyframes glitch-2 {
+    0% { clip-path: inset(80% 0 5% 0); transform: translate(0.025em, 0.05em); opacity: 0.7; }
+    100% { clip-path: inset(40% 0 45% 0); transform: translate(-0.025em, -0.05em); opacity: 0.9; }
+}
+@keyframes glitch-scanline {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(-0.1em); } /* 微かに上下に揺れる */
+}
+
+
+/* ★★★ 修正点：クリック時の、発光効果を、再定義 ★★★ */
+#title-logo.is-clicking {
+    /* 通常の、影を、一旦、消し、強い、白い、光に、置き換える */
+    text-shadow: 0 0 25px #ffffff, 0 0 10px #aaddff !important;
+}
