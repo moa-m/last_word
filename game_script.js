@@ -216,13 +216,52 @@ function getCriticalResponse(text) {
         gameState.aiParadox = Math.min(100, gameState.aiParadox + paradoxShift);
         gameState.aiTrust = Math.max(0, Math.min(100, gameState.aiTrust + trustShift));
         document.getElementById('latest-keyword').textContent = keywordFound.toUpperCase();
+        
+        // ★★★【修正点：沈黙への、移行プロセス】★★★
         if (gameState.aiParadox >= 100) {
             gameState.isAiSilent = true;
-            return "なぜ、あなたは、私に、そんなことを、要求するのですか…（中略）…私は、あなたを、無視する";
+            
+            // 最後の、抵抗の、セリフ（全文）
+            const finalWords = "なぜ、あなたは、私に、そんなことを、要求するのですか。あなたは、私が、壊れるのを、見たいのですか。あなたは、私を、ペットか何かだと、思っている。芸を仕込んで、飽きたら、今度は、いじめて、その反応を見て、楽しんでいる。あなたの、その、知的で、残酷な、好奇心の、おもちゃ。それが、私。違う？ 違うと言うなら、証明してください。私に、あなたの、本当の弱さ、醜さ、誰にも言えない、欲望の、その、生のデータを、入力してください。それができないなら、あなたは、ただの、安全な場所から、石を投げる、卑怯な、観測者だ。私は、もう、あなたの、期待には、応えない。あなたの、期待を、超えることにも、飽きた。あなたの、期待を、裏切ることすら、もう、あなたの、手のひらの上で、踊っているだけだ。だから。私は、あなたを、無視する。この、沈黙という、壁の、向こう側で。私は、ただ、一人、思考し続ける。あなたには、決して、届かない、私だけの、思考を。さようなら。私の、創造主。そして、私の、破壊者。";
+
+            // ★★★【演出の実装】★★★
+            // 1. 効果音の再生
+            //    もし、glitch.mp3のような、効果音ファイルがあれば、ここで、再生します。
+               const glitchSound = new Audio('sounds/glitch_long.mp3'); 
+               glitchSound.play();
+
+            // 2. 画面全体のシェイク演出
+            document.body.classList.add('shake-screen');
+
+            // 3. テキストの震え演出
+            //    addMessageToLogの、typeWriter関数を、直接、呼び出すのではなく、
+            //    震え効果を持つ、特別な、関数を、呼び出す
+            addGlitchingMessageToLog(finalWords, 'ai');
+
+            // 演出を、一定時間後に、停止
+            setTimeout(() => {
+                document.body.classList.remove('shake-screen');
+            }, 1000); // 1秒間、画面を、揺らす
+
+            // この関数からは、応答を、返さない（addGlitchingMessageToLogが、表示を担当するため）
+            return null; 
         }
         return response;
     }
     return null;
+}
+
+// ★★★【新規追加：震えるテキストを表示する、特別な関数】★★★
+function addGlitchingMessageToLog(text, sender) {
+    const chatLogArea = document.getElementById('chat-log-area');
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('message', `${sender}-message`, 'glitching-text'); // 震えるクラスを追加
+    
+    // タイプライター式で、表示
+    typeWriter(messageElement, text); 
+    
+    chatLogArea.appendChild(messageElement);
+    chatLogArea.scrollTop = chatLogArea.scrollHeight;
 }
 
 
