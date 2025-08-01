@@ -139,46 +139,21 @@ function handlePlayerInput() {
     thoughtProcess.textContent = "THINKING...";
     thoughtProcess.classList.add('thinking');
 
-    // ★★★ ここからが、新しい、応答生成の、流れです ★★★
+    // 応答生成エンジンを、呼び出す
+    const aiResponse = getAiResponse(inputText);
 
-    // 優先度1, 2, 3の、事前生成された、応答を、まず、試みる
-    const preGeneratedResponse = getPreGeneratedResponse(inputText);
-
-    if (preGeneratedResponse) {
-        // もし、事前生成された、応答が、見つかった場合
-        const thinkingTime = Math.random() * 1000 + 800;
-        setTimeout(() => {
-            thoughtProcess.textContent = "AWAITING INPUT...";
-            thoughtProcess.classList.remove('thinking');
-            if (preGeneratedResponse !== null) { // クライマックスの、null応答を、考慮
-                addMessageToLog(preGeneratedResponse, 'ai');
-            }
-            updateStatusPanel();
-        }, thinkingTime);
-
-    } else {
-        // ★★★ 事前生成された、応答が、なかった場合、初めて、APIを、呼び出す ★★★
-        callGeminiAPI(inputText).then(apiResponse => {
-            // API呼び出しが、成功した場合
-            thoughtProcess.textContent = "AWAITING INPUT...";
-            thoughtProcess.classList.remove('thinking');
-            addMessageToLog(apiResponse, 'ai');
-            gameState.aiTrust = Math.min(100, gameState.aiTrust + 1);
-            updateStatusPanel();
-
-        }).catch(error => {
-            // ★★★ API呼び出しが、失敗した場合の、最終フォールバック ★★★
-            console.error("API Call Failed, using fallback response:", error);
-            const fallbackResponse = getFallbackResponse(); // カテゴリ3を、呼び出す
-            
-            thoughtProcess.textContent = "AWAITING INPUT...";
-            thoughtProcess.classList.remove('thinking');
-            addMessageToLog(fallbackResponse, 'ai');
-
-            // エラー時でも、UIは、更新する
-            updateStatusPanel();
-        });
-    }
+    // 思考時間を演出
+    const thinkingTime = Math.random() * 1000 + 800;
+    setTimeout(() => {
+        thoughtProcess.textContent = "AWAITING INPUT...";
+        thoughtProcess.classList.remove('thinking');
+        
+        if (aiResponse !== null) { // クライマックスの、null応答を、考慮
+            addMessageToLog(aiResponse, 'ai');
+        }
+        
+        updateStatusPanel();
+    }, thinkingTime);
 }
 
 // ★★★【新規追加】★★★
