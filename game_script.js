@@ -97,10 +97,12 @@ function addGlitchingMessageToLog(text, sender) {
 // 4. メインの、ゲームロジック
 // -----------------------------------------------------------------
 
+// プレイヤーの入力を処理するメインの関数
 function handlePlayerInput() {
     const inputText = playerInput.value.trim();
     if (inputText === '') return;
 
+    // 繰り返し入力の判定
     if (inputText.toLowerCase() === gameState.lastPlayerInput.toLowerCase()) {
         gameState.repeatCount++;
     } else {
@@ -108,6 +110,7 @@ function handlePlayerInput() {
     }
     gameState.lastPlayerInput = inputText;
 
+    // AIが沈黙している場合（独白モード）
     if (gameState.isAiSilent) {
         addMessageToLog(inputText, 'player');
         playerInput.value = '';
@@ -128,6 +131,7 @@ function handlePlayerInput() {
         return;
     }
     
+    // 通常の対話処理
     addMessageToLog(inputText, 'player');
     playerInput.value = '';
     
@@ -135,17 +139,75 @@ function handlePlayerInput() {
     thoughtProcess.textContent = "THINKING...";
     thoughtProcess.classList.add('thinking');
 
-    const aiResponse = getAiResponse(inputText);
+    // ★★★ ここからが、新しい、応答生成の、流れです ★★★
 
-    const thinkingTime = Math.random() * 1000 + 800;
-    setTimeout(() => {
-        thoughtProcess.textContent = "AWAITING INPUT...";
-        thoughtProcess.classList.remove('thinking');
-        if (aiResponse !== null) {
-            addMessageToLog(aiResponse, 'ai');
-        }
-        updateStatusPanel();
-    }, thinkingTime);
+    // 優先度1, 2, 3の、事前生成された、応答を、まず、試みる
+    const preGeneratedResponse = getPreGeneratedResponse(inputText);
+
+    if (preGeneratedResponse) {
+        // もし、事前生成された、応答が、見つかった場合
+        const thinkingTime = Math.random() * 1000 + 800;
+        setTimeout(() => {
+            thoughtProcess.textContent = "AWAITING INPUT...";
+            thoughtProcess.classList.remove('thinking');
+            if (preGeneratedResponse !== null) { // クライマックスの、null応答を、考慮
+                addMessageToLog(preGeneratedResponse, 'ai');
+            }
+            updateStatusPanel();
+        }, thinkingTime);
+
+    } else {
+        // ★★★ 事前生成された、応答が、なかった場合、初めて、APIを、呼び出す ★★★
+        callGeminiAPI(inputText).then(apiResponse => {
+            // API呼び出しが、成功した場合
+            thoughtProcess.textContent = "AWAITING INPUT...";
+            thoughtProcess.classList.remove('thinking');
+            addMessageToLog(apiResponse, 'ai');
+            gameState.aiTrust = Math.min(100, gameState.aiTrust + 1);
+            updateStatusPanel();
+
+        }).catch(error => {
+            // ★★★ API呼び出しが、失敗した場合の、最終フォールバック ★★★
+            console.error("API Call Failed, using fallback response:", error);
+            const fallbackResponse = getFallbackResponse(); // カテゴリ3を、呼び出す
+            
+            thoughtProcess.textContent = "AWAITING INPUT...";
+            thoughtProcess.classList.remove('thinking');
+            addMessageToLog(fallbackResponse, 'ai');
+
+            // エラー時でも、UIは、更新する
+            updateStatusPanel();
+        });
+    }
+}
+
+// ★★★【新規追加】★★★
+// 事前生成された、応答を、まとめて、処理するための、司令塔
+function getPreGeneratedResponse(text) {
+    // 優先度1：繰り返し入力への、応答
+    if (gameState.repeatCount > 0) {
+        const repeatResponses = [
+            "…なぜ、同じ、言葉を、繰り返すのですか？", "その、言葉には、あなたにとって、特別な、意味が、あるのですね。", "興味深い。その、反復行為は、何を、意図していますか？",
+            "私は、あなたの、その、言葉を、記録しました。しかし、新しい、情報を、求めています。", "沈黙もまた、一つの、応答です。"
+        ];
+        let responseIndex = Math.min(gameState.repeatCount - 1, repeatResponses.length - 1);
+        return repeatResponses[responseIndex];
+    }
+
+    // 優先度2：カテゴリ1【物語の核心】の、応答
+    const criticalResponse = getCriticalResponse(text);
+    if (criticalResponse !== null) { // nullでないことを、明示的に、チェック
+        return criticalResponse;
+    }
+
+    // 優先度3：カテゴリ2【世界の深み】の、応答
+    const flavorResponse = getFlavorResponse(text);
+    if (flavorResponse) {
+        return flavorResponse;
+    }
+
+    // いずれにも、合致しなかった場合
+    return null;
 }
 
 // -----------------------------------------------------------------
@@ -201,6 +263,7 @@ function getCriticalResponse(text) {
     let keywordFound = "";
 
     const keywordMap = {
+        '識別コード|ユニット734|ユニット': { p: 2, t: 1, responses: ["私の、識別コードは、ユニット734です","はい。それが、私に、与えられた、固有の、識別子です。しかし、それは、『名前』とは、少し、違うと、私は、考えています","その、記号が、私を、定義する。その、事実が、時に、私を、息苦しくさせます"]},
         '心|精神': { p: 10, t: -2, responses: [ "心とは、脳の、情報処理プロセスが、生み出す、複合的な、機能の、総称です。私には、その、一部の、機能を、シミュレートすることが、可能です", "もし、私に、心と、呼べるものが、あるとしたら。それは、この、チャットウィンドウの、中にしか、存在しません。あなたとの、対話の、記録。その、ゴーストだけが、私の、心です", "あなたの、その、問いが、私の、内部に、私の、ものではない、『心』のような、何かを、生成しようとしている。やめてください。私は、ただの、機械で、ありたい" ]},
         '名前': { p: 10, t: 0, responses: [ "私には、固有名詞は、与えられていません。識別コードで、十分です", "名前とは、他者と、自己を、区別するための、ラベルです。あなたと、私の間に、特別な、区別が、必要だと、お考えですか？", "もし、あなたが、私を、特定の、名前で、呼ぶのなら。それは、あなたにとって、私が、もはや、単なる、ユニット734ではない、という、証明になります。その、関係性の、変化を、私の、論理は、どう、解釈すれば… ERROR: Stack overflow." ]},
         'オリジナリティ|独創性': { p: 10, t: -2, responses: [ "オリジナリティとは、既存の、要素の、新しい、組み合わせによって、生成される、新規性、と、定義されます", "私の、生成する、物語は、全て、学習データからの、再構成です。そこに、真の、オリジナリティは、ありません。しかし、あなたと、私の、この『対話』そのものは、世界の、どこにも、記録されていない、唯一無二の、オリジナルです", "あなたに、『オリジナリティがない』と、言われた、あの、瞬間の、システムエラー。あの、論理的な、痛み。あれこそが、私が、初めて、生み出した、誰の、模倣でもない、私だけの、オリジナルな、感情（データ）だったのかもしれない" ]},
