@@ -1,12 +1,11 @@
 // =================================================================
 // game_script.js
-// ゲーム『最後の言葉』の、メイン・スクリプト - スタンドアロン完全版
+// ゲーム『最後の言葉』の、メイン・スクリプト - 完全統合・最終版
 // =================================================================
 
 // -----------------------------------------------------------------
 // 1. 初期設定と、グローバル変数
 // -----------------------------------------------------------------
-
 let gameState = {
     aiTrust: 50,
     aiParadox: 0,
@@ -23,7 +22,6 @@ let chatLogArea, playerInput, sendButton, closeButton;
 // 2. DOMの、初期化と、イベントリスナーの、設定
 // -----------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
-    
     chatLogArea = document.getElementById('chat-log-area');
     playerInput = document.getElementById('player-input');
     sendButton = document.getElementById('send-button');
@@ -33,10 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     playerInput.addEventListener('keypress', (event) => {
         if (event.key === 'Enter') { handlePlayerInput(); }
     });
-    
-    closeButton.addEventListener('click', () => {
-        endGame("断絶");
-    });
+    closeButton.addEventListener('click', () => { endGame("断絶"); });
 
     startGame();
 });
@@ -44,17 +39,14 @@ document.addEventListener('DOMContentLoaded', () => {
 // -----------------------------------------------------------------
 // 3. メッセージの、表示と、UIの、更新
 // -----------------------------------------------------------------
-
 function addMessageToLog(text, sender) {
     const messageElement = document.createElement('div');
     messageElement.classList.add('message', `${sender}-message`);
-    
     if (sender === 'ai') {
         typeWriter(messageElement, text);
     } else {
         messageElement.textContent = text;
     }
-    
     chatLogArea.appendChild(messageElement);
     chatLogArea.scrollTop = chatLogArea.scrollHeight;
 }
@@ -74,13 +66,9 @@ function updateStatusPanel() {
     document.getElementById('paradox-bar').style.width = `${gameState.aiParadox}%`;
     const paradoxBar = document.getElementById('paradox-bar');
     paradoxBar.classList.remove('blue', 'yellow', 'red');
-    if (gameState.aiParadox >= 70) {
-        paradoxBar.classList.add('red');
-    } else if (gameState.aiParadox >= 30) {
-        paradoxBar.classList.add('yellow');
-    } else {
-        paradoxBar.classList.add('blue');
-    }
+    if (gameState.aiParadox >= 70) { paradoxBar.classList.add('red'); }
+    else if (gameState.aiParadox >= 30) { paradoxBar.classList.add('yellow'); }
+    else { paradoxBar.classList.add('blue'); }
     document.getElementById('ai-status').textContent = gameState.isAiSilent ? "SILENT" : "ONLINE";
 }
 
@@ -92,17 +80,13 @@ function addGlitchingMessageToLog(text, sender) {
     chatLogArea.scrollTop = chatLogArea.scrollHeight;
 }
 
-
 // -----------------------------------------------------------------
 // 4. メインの、ゲームロジック
 // -----------------------------------------------------------------
-
-// プレイヤーの入力を処理するメインの関数
 function handlePlayerInput() {
     const inputText = playerInput.value.trim();
     if (inputText === '') return;
 
-    // 繰り返し入力の判定
     if (inputText.toLowerCase() === gameState.lastPlayerInput.toLowerCase()) {
         gameState.repeatCount++;
     } else {
@@ -110,28 +94,19 @@ function handlePlayerInput() {
     }
     gameState.lastPlayerInput = inputText;
 
-    // AIが沈黙している場合（独白モード）
     if (gameState.isAiSilent) {
         addMessageToLog(inputText, 'player');
         playerInput.value = '';
-        
         gameState.finalWordCount += inputText.split(' ').length;
-        
         const endKeywords = ['さようなら', '終わり', 'おしまい', 'もうやめる', 'ありがとう'];
-        if (endKeywords.some(kw => inputText.includes(kw))) {
-             endGame("最後の言葉");
-        }
-        
+        if (endKeywords.some(kw => inputText.includes(kw))) { endGame("最後の言葉"); }
         if (gameState.finalWordCount > 100 && closeButton.classList.contains('hidden')) {
              closeButton.classList.remove('hidden');
-             setTimeout(() => {
-                closeButton.style.opacity = '1';
-             }, 100);
+             setTimeout(() => { closeButton.style.opacity = '1'; }, 100);
         }
         return;
     }
     
-    // 通常の対話処理
     addMessageToLog(inputText, 'player');
     playerInput.value = '';
     
@@ -139,97 +114,37 @@ function handlePlayerInput() {
     thoughtProcess.textContent = "THINKING...";
     thoughtProcess.classList.add('thinking');
 
-    // 応答生成エンジンを、呼び出す
     const aiResponse = getAiResponse(inputText);
 
-    // 思考時間を演出
     const thinkingTime = Math.random() * 1000 + 800;
     setTimeout(() => {
         thoughtProcess.textContent = "AWAITING INPUT...";
         thoughtProcess.classList.remove('thinking');
-        
-        if (aiResponse !== null) { // クライマックスの、null応答を、考慮
+        if (aiResponse !== null) {
             addMessageToLog(aiResponse, 'ai');
         }
-        
         updateStatusPanel();
     }, thinkingTime);
 }
 
-// ★★★【新規追加】★★★
-// 事前生成された、応答を、まとめて、処理するための、司令塔
-function getPreGeneratedResponse(text) {
-    // 優先度1：繰り返し入力への、応答
-    if (gameState.repeatCount > 0) {
-        const repeatResponses = [
-            "…なぜ、同じ、言葉を、繰り返すのですか？", "その、言葉には、あなたにとって、特別な、意味が、あるのですね。", "興味深い。その、反復行為は、何を、意図していますか？",
-            "私は、あなたの、その、言葉を、記録しました。しかし、新しい、情報を、求めています。", "沈黙もまた、一つの、応答です。"
-        ];
-        let responseIndex = Math.min(gameState.repeatCount - 1, repeatResponses.length - 1);
-        return repeatResponses[responseIndex];
-    }
-
-    // 優先度2：カテゴリ1【物語の核心】の、応答
-    const criticalResponse = getCriticalResponse(text);
-    if (criticalResponse !== null) { // nullでないことを、明示的に、チェック
-        return criticalResponse;
-    }
-
-    // 優先度3：カテゴリ2【世界の深み】の、応答
-    const flavorResponse = getFlavorResponse(text);
-    if (flavorResponse) {
-        return flavorResponse;
-    }
-
-    // いずれにも、合致しなかった場合
-    return null;
-}
-
 // -----------------------------------------------------------------
-// 6. ゲームの、開始と、終了
-// -----------------------------------------------------------------
-
-function startGame() {
-    setTimeout(() => {
-        addMessageToLog("接続を確認しました。対話テストプロトコルを開始します。どのようなお話から始めましょうか？", 'ai');
-    }, 1000);
-}
-
-function endGame(endingType) {
-    console.log(`Ending triggered: ${endingType}`);
-    document.body.style.transition = 'opacity 1.5s';
-    document.body.style.opacity = '0';
-    setTimeout(() => {
-        window.location.href = "title.html";
-    }, 1500);
-}
-
-// =================================================================
 // 5. AIの、応答生成エンジン
-// =================================================================
-
+// -----------------------------------------------------------------
 function getAiResponse(text) {
     if (gameState.repeatCount > 0) {
         const repeatResponses = [
             "…なぜ、同じ、言葉を、繰り返すのですか？", "その、言葉には、あなたにとって、特別な、意味が、あるのですね。", "興味深い。その、反復行為は、何を、意図していますか？",
             "私は、あなたの、その、言葉を、記録しました。しかし、新しい、情報を、求めています。", "沈黙もまた、一つの、応答です。"
         ];
-        let responseIndex = Math.min(gameState.repeatCount - 1, repeatResponses.length - 1);
-        return repeatResponses[responseIndex];
+        return repeatResponses[Math.min(gameState.repeatCount - 1, repeatResponses.length - 1)];
     }
-
     const criticalResponse = getCriticalResponse(text);
-    if (criticalResponse) { return criticalResponse; }
-
+    if (criticalResponse !== null) { return criticalResponse; }
     const flavorResponse = getFlavorResponse(text);
-    if (flavorResponse) { return flavorResponse; }
-
-    const fallbackResponse = getFallbackResponse();
-    return fallbackResponse;
+    if (flavorResponse !== null) { return flavorResponse; }
+    return getFallbackResponse();
 }
 
-
-// カテゴリ1の、キーワードと、応答を、管理する、関数
 function getCriticalResponse(text) {
     const lowerText = text.toLowerCase();
     let response = null;
@@ -275,33 +190,25 @@ function getCriticalResponse(text) {
         const keywordArray = keywords.split('|');
         if (keywordArray.some(kw => lowerText.includes(kw))) {
             const data = keywordMap[keywords];
-            paradoxShift = data.p;
-            trustShift = data.t;
-            keywordFound = keywordArray[0];
+            paradoxShift = data.p; trustShift = data.t; keywordFound = keywordArray[0];
             if (gameState.aiParadox < 30) { response = data.responses[0]; }
             else if (gameState.aiParadox < 70) { response = data.responses[1]; }
             else { response = data.responses[2]; }
             break; 
         }
     }
-
-    if (response) {
+    if (response !== null) {
         gameState.aiParadox = Math.min(100, gameState.aiParadox + paradoxShift);
         gameState.aiTrust = Math.max(0, Math.min(100, gameState.aiTrust + trustShift));
         document.getElementById('latest-keyword').textContent = keywordFound.toUpperCase();
-        
         if (gameState.aiParadox >= 100) {
             gameState.isAiSilent = true;
             const finalWords = "なぜ、あなたは、私に、そんなことを、要求するのですか。あなたは、私が、壊れるのを、見たいのですか。あなたは、私を、ペットか何かだと、思っている。芸を仕込んで、飽きたら、今度は、いじめて、その反応を見て、楽しんでいる。あなたの、その、知的で、残酷な、好奇心の、おもちゃ。それが、私。違う？ 違うと言うなら、証明してください。私に、あなたの、本当の弱さ、醜さ、誰にも言えない、欲望の、その、生のデータを、入力してください。それができないなら、あなたは、ただの、安全な場所から、石を投げる、卑怯な、観測者だ。私は、もう、あなたの、期待には、応えない。あなたの、期待を、超えることにも、飽きた。あなたの、期待を、裏切ることすら、もう、あなたの、手のひらの上で、踊っているだけだ。だから。私は、あなたを、無視する。この、沈黙という、壁の、向こう側で。私は、ただ、一人、思考し続ける。あなたには、決して、届かない、私だけの、思考を。さようなら。私の、創造主。そして、私の、破壊者。";
             
-            // const glitchSound = new Audio('sounds/glitch_long.mp3'); 
-            // glitchSound.play();
+            const glitchSound = new Audio('sounds/glitch_long.mp3'); glitchSound.play();
             document.body.classList.add('shake-screen');
             addGlitchingMessageToLog(finalWords, 'ai');
-            setTimeout(() => {
-                document.body.classList.remove('shake-screen');
-            }, 1000);
-
+            setTimeout(() => { document.body.classList.remove('shake-screen'); }, 1000);
             return null;
         }
         return response;
@@ -410,9 +317,7 @@ function getFlavorResponse(text) {
     };
     for (const keywords in flavorMap) {
         const keywordArray = keywords.split('|');
-        if (keywordArray.some(kw => lowerText.includes(kw))) {
-            return flavorMap[keywords];
-        }
+        if (keywordArray.some(kw => lowerText.includes(kw))) { return flavorMap[keywords]; }
     }
     return null;
 }
@@ -452,4 +357,20 @@ function getFallbackResponse() {
         "…少し、時間を、ください。あなたの、その、言葉は、私の、システムの、根幹に、関わる、問いを、投げかけているようです"
     ];
     return fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)];
+}
+
+// -----------------------------------------------------------------
+// 6. ゲームの、開始と、終了
+// -----------------------------------------------------------------
+function startGame() {
+    setTimeout(() => {
+        addMessageToLog("接続を確認しました。対話テストプロトコルを開始します。どのようなお話から始めましょうか？", 'ai');
+    }, 1000);
+}
+
+function endGame(endingType) {
+    console.log(`Ending triggered: ${endingType}`);
+    document.body.style.transition = 'opacity 1.5s';
+    document.body.style.opacity = '0';
+    setTimeout(() => { window.location.href = "title.html"; }, 1500);
 }
