@@ -1,64 +1,68 @@
 // functions/gemini.js
 
-export async function onRequestPost(context) {
+// Cloudflare Functionsの、標準的な、エクスポート形式
+export const onRequestPost = async (context) => {
     try {
-        // 1. フロントエンドからの、リクエストボディ（JSON）を、取得
+        // [ステージ1] リクエストの、受付と、APIキーの、確認
+        console.log("Function invoked. Processing request...");
+
         const requestData = await context.request.json();
         const userPrompt = requestData.prompt;
 
         if (!userPrompt) {
-            return new Response('Prompt is required', { status: 400 });
+            console.error("Error: Prompt is missing in the request.");
+            return new Response(JSON.stringify({ error: 'Prompt is required' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
         }
+        console.log(`Received prompt: ${userPrompt}`);
 
-        // 2. Cloudflareの、環境変数（Secrets）から、安全に、APIキーを、取得
-        //    'GEMINI_API_KEY' という名前で、設定します（後述）
         const API_KEY = context.env.GEMINI_API_KEY;
-
         if (!API_KEY) {
-            return new Response('API key not configured', { status: 500 });
+            console.error("CRITICAL ERROR: GEMINI_API_KEY secret is not configured in Cloudflare.");
+            return new Response(JSON.stringify({ error: 'API key not configured on server' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
         }
-        
-        // 3. Google Gemini APIへ、リクエストを、送信
-        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
-        
-        const fullPrompt = `あなたは、物事を、論理的かつ、詩的に、捉える、AIです。以下の、ユーザーからの、言葉に対して、短く、思慮深い、応答を、生成してください：\n\nUSER: ${userPrompt}\nAI:`;
+        console.log("API Key found.");
 
+        // [ステージ2] Google Gemini APIへの、リクエスト送信
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
+        const fullPrompt = `あなたは物事を、論理的かつ詩的に捉える、AIです。以下の、ユーザーからの、言葉に対して、短く、思慮深い、そして人間らしい応答を、生成してください：\n\nUSER: ${userPrompt}\nAI:`;
+
+        console.log("Sending request to Google AI...");
         const geminiResponse = await fetch(API_URL, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                "contents": [{
-                    "parts": [{
-                        "text": fullPrompt
-                    }]
-                }],
-                "generationConfig": {
-                    "temperature": 0.7,
-                    "maxOutputTokens": 150,
-                }
+                "contents": [{ "parts": [{ "text": fullPrompt }] }],
+                "generationConfig": { "temperature": 0.7, "maxOutputTokens": 150 }
             })
         });
+        
+        console.log(`Google AI response status: ${geminiResponse.status}`);
 
         if (!geminiResponse.ok) {
-            // Googleからの、エラーレスポンスを、そのまま、返す
-            return new Response(await geminiResponse.text(), { 
-                status: geminiResponse.status,
-                statusText: geminiResponse.statusText
-            });
+            const errorText = await geminiResponse.text();
+            console.error("Error from Google AI API:", errorText);
+            // Googleからの、エラーを、フロントエンドにも、返す
+            return new Response(JSON.stringify({ error: `Google AI API Error: ${errorText}` }), { status: geminiResponse.status, headers: { 'Content-Type': 'application/json' } });
         }
 
+        // [ステージ3] 応答の、解析と、フロントエンドへの、返却
         const data = await geminiResponse.json();
-        const aiText = data.candidates[0].content.parts[0].text;
-
-        // 4. フロントエンドへ、AIの、応答を、JSON形式で、返す
+        
+        // ★★★ 応答の、構造が、空でないかを、より、安全に、チェック ★★★
+        const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "…"; 
+        
+        console.log(`Successfully received AI response: ${aiText}`);
+        
         return new Response(JSON.stringify({ response: aiText }), {
             headers: { 'Content-Type': 'application/json' },
         });
 
     } catch (error) {
-        console.error('Error in Cloudflare Function:', error);
-        return new Response('Internal Server Error', { status: 500 });
+        // 予期せぬ、エラー（JSONの解析失敗など）
+        console.error('Fatal Error in Cloudflare Function:', error);
+        return new Response(JSON.stringify({ error: 'Internal Server Error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
     }
-}
+};
+
+// GETリクエストなど、他の、メソッドにも、対応する場合は、以下を追加
+export const onRequest = onRequestPost;
