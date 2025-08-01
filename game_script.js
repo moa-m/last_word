@@ -89,23 +89,42 @@ function addGlitchingMessageToLog(text, sender) {
 // -----------------------------------------------------------------
 // 4. メインの、ゲームロジック
 // -----------------------------------------------------------------
+// プレイヤーの入力を処理するメインの関数
 function handlePlayerInput() {
     const inputText = playerInput.value.trim();
     if (inputText === '') return;
 
+    // プレイヤーの、メッセージ表示を、まず、一番、最初に行う
+    addMessageToLog(inputText, 'player');
+    playerInput.value = '';
+
+    // --- AIが、沈黙している場合の、処理 ---
     if (gameState.isAiSilent) {
-        addMessageToLog(inputText, 'player');
-        playerInput.value = '';
+        // 独白モードの、フラグ管理
         gameState.finalWordCount += inputText.split(' ').length;
+        
+        // 終了キーワードの、判定
         const endKeywords = ['さようなら', '終わり', 'おしまい', 'もうやめる', 'ありがとう'];
-        if (endKeywords.some(kw => inputText.includes(kw))) { endGame("最後の言葉"); }
+        if (endKeywords.some(kw => inputText.includes(kw))) {
+             endGame("最後の言葉");
+        }
+        
+        // 救済措置：閉じるボタンの、表示
+        // 'hidden'クラスが、存在する場合のみ、この、チェックを行う
         if (gameState.finalWordCount > 100 && closeButton.classList.contains('hidden')) {
              closeButton.classList.remove('hidden');
-             setTimeout(() => { closeButton.style.opacity = '1'; }, 100);
+             setTimeout(() => {
+                closeButton.style.opacity = '1';
+             }, 100);
         }
+        
+        // 沈黙モードなので、ここで、処理を、完全に、終了させる
         return; 
     }
     
+    // --- 通常の、対話処理 ---
+    
+    // 繰り返し入力の判定
     if (inputText.toLowerCase() === gameState.lastPlayerInput.toLowerCase()) {
         gameState.repeatCount++;
     } else {
@@ -113,22 +132,25 @@ function handlePlayerInput() {
     }
     gameState.lastPlayerInput = inputText;
     
-    addMessageToLog(inputText, 'player');
-    playerInput.value = '';
-    
+    // 思考中演出
     const thoughtProcess = document.getElementById('thought-process');
     thoughtProcess.textContent = "THINKING...";
     thoughtProcess.classList.add('thinking');
 
+    // 応答生成エンジンを呼び出す
     const aiResponse = getAiResponse(inputText);
 
+    // 思考時間を演出して、応答を表示
     const thinkingTime = Math.random() * 1000 + 800;
     setTimeout(() => {
         thoughtProcess.textContent = "AWAITING INPUT...";
         thoughtProcess.classList.remove('thinking');
+        
+        // getCriticalResponseが、クライマックスで、nullを返した場合、メッセージは表示されない
         if (aiResponse !== null) { 
             addMessageToLog(aiResponse, 'ai');
         }
+        
         updateStatusPanel();
     }, thinkingTime);
 }
@@ -233,8 +255,12 @@ function getCriticalResponse(text) {
 
             document.body.classList.add('shake-screen');
             addGlitchingMessageToLog(finalWords, 'ai');
-            setTimeout(() => { document.body.classList.remove('shake-screen'); }, 1000);
-            return null;
+            setTimeout(() => {
+                document.body.classList.remove('shake-screen');
+            }, 1000);
+
+            // この、関数からは、nullを、返す
+            return null; 
         }
         return response;
     }
