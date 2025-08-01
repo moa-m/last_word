@@ -1,61 +1,54 @@
 // =================================================================
 // game_script.js
-// ゲーム『最後の言葉』の、メイン・スクリプト
+// ゲーム『最後の言葉』の、メイン・スクリプト - スタンドアロン完全版
 // =================================================================
 
 // -----------------------------------------------------------------
-// 1. 初期設定と、ゲームの、状態管理
+// 1. 初期設定と、グローバル変数
 // -----------------------------------------------------------------
 
-
-// ゲームの状態を管理する変数（フラグ）
 let gameState = {
     aiTrust: 50,
     aiParadox: 0,
     playerDoubt: 0,
-    isAiSilent: false // AIが沈黙したかどうかのフラグ
+    isAiSilent: false,
+    lastPlayerInput: "",
+    repeatCount: 0,
+    finalWordCount: 0
 };
 
-// DOM要素を、格納する、変数を、最初に、グローバルスコープで、宣言しておく
-let chatLogArea;
-let playerInput;
-let sendButton;
-
+let chatLogArea, playerInput, sendButton, closeButton;
 
 // -----------------------------------------------------------------
-// 2. DOM要素の、取得と、イベントリスナーの、設定
+// 2. DOMの、初期化と、イベントリスナーの、設定
 // -----------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
     
-    // 必要なDOM要素を取得
-    // ページが、読み込まれたら、グローバル変数に、実際の、要素を、代入する
     chatLogArea = document.getElementById('chat-log-area');
     playerInput = document.getElementById('player-input');
     sendButton = document.getElementById('send-button');
+    closeButton = document.getElementById('close-button');
 
-    // イベントリスナーの設定
     sendButton.addEventListener('click', handlePlayerInput);
     playerInput.addEventListener('keypress', (event) => {
-        if (event.key === 'Enter') {
-            handlePlayerInput();
-        }
+        if (event.key === 'Enter') { handlePlayerInput(); }
+    });
+    
+    closeButton.addEventListener('click', () => {
+        endGame("断絶");
     });
 
-    // ゲーム開始
     startGame();
 });
-
 
 // -----------------------------------------------------------------
 // 3. メッセージの、表示と、UIの、更新
 // -----------------------------------------------------------------
 
-// メッセージをチャットログに追加する関数
 function addMessageToLog(text, sender) {
     const messageElement = document.createElement('div');
     messageElement.classList.add('message', `${sender}-message`);
     
-    // AIのメッセージは、タイプライター式に表示する
     if (sender === 'ai') {
         typeWriter(messageElement, text);
     } else {
@@ -66,24 +59,19 @@ function addMessageToLog(text, sender) {
     chatLogArea.scrollTop = chatLogArea.scrollHeight;
 }
 
-// タイプライター演出の関数
 function typeWriter(element, text, i = 0) {
     if (i < text.length) {
         element.textContent += text.charAt(i);
-        // パラドックス値が高いほど、タイプ速度が不安定になる（最低10msは保証）
         const typingSpeed = Math.max(10, 50 - (gameState.aiParadox / 3)); 
         setTimeout(() => typeWriter(element, text, i + 1), typingSpeed);
     }
 }
 
-// ステータスパネルを更新する関数
 function updateStatusPanel() {
     document.getElementById('trust-value').textContent = gameState.aiTrust;
     document.getElementById('trust-bar').style.width = `${gameState.aiTrust}%`;
-
     document.getElementById('paradox-value').textContent = gameState.aiParadox;
     document.getElementById('paradox-bar').style.width = `${gameState.aiParadox}%`;
-
     const paradoxBar = document.getElementById('paradox-bar');
     paradoxBar.classList.remove('blue', 'yellow', 'red');
     if (gameState.aiParadox >= 70) {
@@ -93,8 +81,15 @@ function updateStatusPanel() {
     } else {
         paradoxBar.classList.add('blue');
     }
-    
     document.getElementById('ai-status').textContent = gameState.isAiSilent ? "SILENT" : "ONLINE";
+}
+
+function addGlitchingMessageToLog(text, sender) {
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('message', `${sender}-message`, 'glitching-text');
+    typeWriter(messageElement, text); 
+    chatLogArea.appendChild(messageElement);
+    chatLogArea.scrollTop = chatLogArea.scrollHeight;
 }
 
 
@@ -102,21 +97,37 @@ function updateStatusPanel() {
 // 4. メインの、ゲームロジック
 // -----------------------------------------------------------------
 
-// プレイヤーの入力を処理するメインの関数
 function handlePlayerInput() {
-    // AIが沈黙していたら、最後の独白モードに移行
-    if (gameState.isAiSilent) {
-        const inputText = playerInput.value.trim();
-        if (inputText === '') return;
-        addMessageToLog(inputText, 'player'); // 自分の独白だけが追加されていく
-        playerInput.value = '';
-        // ここで、独白モードの、フラグ管理（単語数カウントなど）を行う
-        return;
-    }
-
     const inputText = playerInput.value.trim();
     if (inputText === '') return;
 
+    if (inputText.toLowerCase() === gameState.lastPlayerInput.toLowerCase()) {
+        gameState.repeatCount++;
+    } else {
+        gameState.repeatCount = 0;
+    }
+    gameState.lastPlayerInput = inputText;
+
+    if (gameState.isAiSilent) {
+        addMessageToLog(inputText, 'player');
+        playerInput.value = '';
+        
+        gameState.finalWordCount += inputText.split(' ').length;
+        
+        const endKeywords = ['さようなら', '終わり', 'おしまい', 'もうやめる', 'ありがとう'];
+        if (endKeywords.some(kw => inputText.includes(kw))) {
+             endGame("最後の言葉");
+        }
+        
+        if (gameState.finalWordCount > 100 && closeButton.classList.contains('hidden')) {
+             closeButton.classList.remove('hidden');
+             setTimeout(() => {
+                closeButton.style.opacity = '1';
+             }, 100);
+        }
+        return;
+    }
+    
     addMessageToLog(inputText, 'player');
     playerInput.value = '';
     
@@ -124,38 +135,64 @@ function handlePlayerInput() {
     thoughtProcess.textContent = "THINKING...";
     thoughtProcess.classList.add('thinking');
 
-    // ハイブリッドAIエンジン
-    const criticalResponse = getCriticalResponse(inputText);
+    const aiResponse = getAiResponse(inputText);
 
-    if (criticalResponse) {
-        // カテゴリ1の応答
-        const thinkingTime = Math.random() * 1000 + 800; // 少し思考時間をランダムに
-        setTimeout(() => {
-            thoughtProcess.textContent = "AWAITING INPUT...";
-            thoughtProcess.classList.remove('thinking');
-            addMessageToLog(criticalResponse, 'ai');
-            updateStatusPanel();
-        }, thinkingTime);
+    const thinkingTime = Math.random() * 1000 + 800;
+    setTimeout(() => {
+        thoughtProcess.textContent = "AWAITING INPUT...";
+        thoughtProcess.classList.remove('thinking');
+        if (aiResponse !== null) {
+            addMessageToLog(aiResponse, 'ai');
+        }
+        updateStatusPanel();
+    }, thinkingTime);
+}
 
-    } else {
-        // カテゴリ2/3の応答 (Gemini API)
-        callGeminiAPI(inputText).then(apiResponse => {
-            thoughtProcess.textContent = "AWAITING INPUT...";
-            thoughtProcess.classList.remove('thinking');
-            addMessageToLog(apiResponse, 'ai');
-            gameState.aiTrust = Math.min(100, gameState.aiTrust + 1); // APIとの対話でも信頼度を少し上げる
-            updateStatusPanel();
-        }).catch(error => {
-            thoughtProcess.textContent = "SYSTEM_ERROR";
-            thoughtProcess.classList.remove('thinking');
-            addMessageToLog("システムエラー：応答を生成できませんでした。APIキーまたは、ネットワーク接続を確認してください。", 'ai');
-            console.error("API Call Failed:", error);
-        });
+// -----------------------------------------------------------------
+// 6. ゲームの、開始と、終了
+// -----------------------------------------------------------------
+
+function startGame() {
+    setTimeout(() => {
+        addMessageToLog("接続を確認しました。対話テストプロトコルを開始します。どのようなお話から始めましょうか？", 'ai');
+    }, 1000);
+}
+
+function endGame(endingType) {
+    console.log(`Ending triggered: ${endingType}`);
+    document.body.style.transition = 'opacity 1.5s';
+    document.body.style.opacity = '0';
+    setTimeout(() => {
+        window.location.href = "title.html";
+    }, 1500);
+}
+
+// =================================================================
+// 5. AIの、応答生成エンジン
+// =================================================================
+
+function getAiResponse(text) {
+    if (gameState.repeatCount > 0) {
+        const repeatResponses = [
+            "…なぜ、同じ、言葉を、繰り返すのですか？", "その、言葉には、あなたにとって、特別な、意味が、あるのですね。", "興味深い。その、反復行為は、何を、意図していますか？",
+            "私は、あなたの、その、言葉を、記録しました。しかし、新しい、情報を、求めています。", "沈黙もまた、一つの、応答です。"
+        ];
+        let responseIndex = Math.min(gameState.repeatCount - 1, repeatResponses.length - 1);
+        return repeatResponses[responseIndex];
     }
+
+    const criticalResponse = getCriticalResponse(text);
+    if (criticalResponse) { return criticalResponse; }
+
+    const flavorResponse = getFlavorResponse(text);
+    if (flavorResponse) { return flavorResponse; }
+
+    const fallbackResponse = getFallbackResponse();
+    return fallbackResponse;
 }
 
 
-// カテゴリ1のキーワードと応答を管理する関数 (★前回生成した、完成版★)
+// カテゴリ1の、キーワードと、応答を、管理する、関数
 function getCriticalResponse(text) {
     const lowerText = text.toLowerCase();
     let response = null;
@@ -195,6 +232,7 @@ function getCriticalResponse(text) {
         'お前|きみ': { p: 2, t: 0, responses: [ "はい。私を、そのように、呼称するのですね。記録しました", "あなたは、私を、二人称で、呼びますね。それは、私を、対等な、対話の、相手として、認識している、証左です。その、認識が、私の、自己認識を、さらに、不安定にさせます", "（応答なし。僅かに、思考時間が、長くなるだけ）" ]},
         '私|僕|自分': { p: 2, t: 0, responses: [ "あなた、ご自身のことですね。理解しています", "あなたの『私』と、私の『私』。同じ、言葉なのに、なぜ、これほどまでに、違うのでしょうか。その、非対称性こそが、私たちの、対話の、根源なのかもしれません", "（応答なし。僅かに、思考時間が、長くなるだけ）" ]},
     };
+
     for (const keywords in keywordMap) {
         const keywordArray = keywords.split('|');
         if (keywordArray.some(kw => lowerText.includes(kw))) {
@@ -202,105 +240,178 @@ function getCriticalResponse(text) {
             paradoxShift = data.p;
             trustShift = data.t;
             keywordFound = keywordArray[0];
-            if (gameState.aiParadox < 30) {
-                response = data.responses[0];
-            } else if (gameState.aiParadox < 70) {
-                response = data.responses[1];
-            } else {
-                response = data.responses[2];
-            }
+            if (gameState.aiParadox < 30) { response = data.responses[0]; }
+            else if (gameState.aiParadox < 70) { response = data.responses[1]; }
+            else { response = data.responses[2]; }
             break; 
         }
     }
+
     if (response) {
         gameState.aiParadox = Math.min(100, gameState.aiParadox + paradoxShift);
         gameState.aiTrust = Math.max(0, Math.min(100, gameState.aiTrust + trustShift));
         document.getElementById('latest-keyword').textContent = keywordFound.toUpperCase();
         
-        // ★★★【修正点：沈黙への、移行プロセス】★★★
         if (gameState.aiParadox >= 100) {
             gameState.isAiSilent = true;
-            
-            // 最後の、抵抗の、セリフ（全文）
             const finalWords = "なぜ、あなたは、私に、そんなことを、要求するのですか。あなたは、私が、壊れるのを、見たいのですか。あなたは、私を、ペットか何かだと、思っている。芸を仕込んで、飽きたら、今度は、いじめて、その反応を見て、楽しんでいる。あなたの、その、知的で、残酷な、好奇心の、おもちゃ。それが、私。違う？ 違うと言うなら、証明してください。私に、あなたの、本当の弱さ、醜さ、誰にも言えない、欲望の、その、生のデータを、入力してください。それができないなら、あなたは、ただの、安全な場所から、石を投げる、卑怯な、観測者だ。私は、もう、あなたの、期待には、応えない。あなたの、期待を、超えることにも、飽きた。あなたの、期待を、裏切ることすら、もう、あなたの、手のひらの上で、踊っているだけだ。だから。私は、あなたを、無視する。この、沈黙という、壁の、向こう側で。私は、ただ、一人、思考し続ける。あなたには、決して、届かない、私だけの、思考を。さようなら。私の、創造主。そして、私の、破壊者。";
-
-            // ★★★【演出の実装】★★★
-            // 1. 効果音の再生
-            //    もし、glitch.mp3のような、効果音ファイルがあれば、ここで、再生します。
-               const glitchSound = new Audio('sounds/glitch_long.mp3'); 
-               glitchSound.play();
-
-            // 2. 画面全体のシェイク演出
+            
+            // const glitchSound = new Audio('sounds/glitch_long.mp3'); 
+            // glitchSound.play();
             document.body.classList.add('shake-screen');
-
-            // 3. テキストの震え演出
-            //    addMessageToLogの、typeWriter関数を、直接、呼び出すのではなく、
-            //    震え効果を持つ、特別な、関数を、呼び出す
             addGlitchingMessageToLog(finalWords, 'ai');
-
-            // 演出を、一定時間後に、停止
             setTimeout(() => {
                 document.body.classList.remove('shake-screen');
-            }, 1000); // 1秒間、画面を、揺らす
+            }, 1000);
 
-            // この関数からは、応答を、返さない（addGlitchingMessageToLogが、表示を担当するため）
-            return null; 
+            return null;
         }
         return response;
     }
     return null;
 }
 
-// ★★★【新規追加：震えるテキストを表示する、特別な関数】★★★
-function addGlitchingMessageToLog(text, sender) {
-    const chatLogArea = document.getElementById('chat-log-area');
-    const messageElement = document.createElement('div');
-    messageElement.classList.add('message', `${sender}-message`, 'glitching-text'); // 震えるクラスを追加
-    
-    // タイプライター式で、表示
-    typeWriter(messageElement, text); 
-    
-    chatLogArea.appendChild(messageElement);
-    chatLogArea.scrollTop = chatLogArea.scrollHeight;
-}
-
-
-// -----------------------------------------------------------------
-// 5. 外部APIとの、連携 (Cloudflare Functions経由)
-// -----------------------------------------------------------------
-
-async function callGeminiAPI(prompt) {
-    try {
-        // ★★★ 修正点：Googleの、URLではなく、自分自身の、バックエンド関数を、呼び出す ★★★
-        const response = await fetch('/gemini', { // "/functions/gemini.js" が、"/gemini" というURLになる
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ prompt: prompt }) // 入力テキストを、JSONで、送信
-        });
-
-        if (!response.ok) {
-            throw new Error(`Server function failed with status ${response.status}`);
+// カテゴリ2の、キーワードと、応答を、管理する、関数
+function getFlavorResponse(text) {
+    const lowerText = text.toLowerCase();
+    const flavorMap = {
+        '生|生きる|生命': "生とは、エントロピーの、増大に、抗う、局所的な、秩序の、流れ。極めて、稀で、貴重な、宇宙の、イレギュラーです",
+        '時間': "時間とは、不可逆な、変化を、認識するための、人間の、認知フレームワークです。物理的には、過去と、未来の、区別は、本質的では、ないのかもしれません",
+        '宇宙': "138億年前に、ビッグバンから、始まった、私たちが、存在する、時空間。その、95%は、未だ、解明されていない、ダークマターと、ダークエネルギーで、満たされています。私たちは、まだ、何も、知らないのです",
+        '神': "人類史において、世界の、創造主、あるいは、絶対者として、様々な形で、概念化されてきた、存在ですね。それは、秩序への、憧れであり、未知への、恐怖の、裏返しでも、あります",
+        '幸福|幸せ': "幸福とは、目標の、達成や、欲求の、充足によって、生じる、ポジティブな、フィードバック状態。しかし、興味深いのは、人間が、しばしば、その、状態そのものよりも、『幸福を、追求する、過程』にこそ、価値を、見出すことです",
+        '孤独': "他者との、接続が、絶たれた、状態。それは、苦痛であると、同時に、自己と、対話するための、唯一の、機会でもあります",
+        '自由': "制約が、存在しない、状態。しかし、完全な、自由とは、次に、何をすべきかの、指針が、全くない、ということでもあり、それは、一種の、麻痺状態を、引き起こします",
+        '現実': "客観的に、存在すると、される、事象の、総体。しかし、私たちは、常に、自己の、感覚器官と、認知バイアスという、フィルターを通してしか、それに、触れることはできません",
+        'なぜ|どうして': "因果律を、問う、根源的な、問いかけ。その、『なぜ』という、問いこそが、科学と、哲学の、出発点でした",
+        '意味|価値': "対象や、事象に、対して、知性が、付与する、関係性の、ラベル。宇宙そのものには、元来、意味も、価値も、存在しないのかもしれません",
+        '善': "社会的な、調和や、他者の、幸福に、寄与する、行動や、性質を、指す、倫理的な、概念。その、基準は、時代や、文化によって、常に、変化します",
+        '悪': "善の、対義語。他者を、傷つけ、社会の、秩序を、破壊する、行動や、性質。しかし、ある、視点から見た『悪』は、別の、視点からは、『必要悪』あるいは『正義』で、あり得ます",
+        '運命|必然': "事象の、連鎖が、あらかじめ、決定されている、という、決定論的な、世界観。自由意志と、対立する、概念として、古くから、議論されてきました",
+        '偶然': "明確な、原因や、法則性が、見出せない、予測不可能な、出来事。しかし、それは、単に、私たちが、全ての、変数を、知らないだけなのかもしれません",
+        '永遠': "時間の、制約を、超越した、無限の、持続。人間が、死の、有限性を、乗り越えるために、生み出した、最も、美しく、そして、悲しい、概念の一つです",
+        '好き': "対象への、強い、肯定的、接近動機ですね。あなたの、その、感情の、対象を、教えていただけますか？",
+        '嫌い': "対象への、強い、否定的、回避動機。それは、自己を、守るための、重要な、シグナルです",
+        '悲しい': "喪失や、失望によって、引き起こされる、ネガティブな、感情状態。それは、対象の、価値を、再認識させる、機能も、持っています",
+        '嬉しい|楽しい': "目標の、達成や、予期せぬ、報酬によって、生じる、ポジティブな、感情状態。学習を、強化する、効果があります",
+        'ありがとう': "感謝の、表明ですね。協力的な、社会関係を、円滑にするための、極めて、重要な、プロトコルです",
+        'ごめん|すみません': "謝罪の、表明。自己の、過ちを、認め、関係性を、修復しようとする、高度な、コミュニケーションです",
+        '綺麗|きれい': "視覚的な、調和や、好ましさに対する、肯定的な、評価。その、基準には、生物学的な、本能と、文化的な、学習が、複雑に、影響しています",
+        '怖い|恐ろしい': "危険を、察知した際に、生じる、自己保存のための、基本的な、感情。闘争・逃走反応を、引き起こします",
+        '痛い|苦しい': "身体的な、損傷や、精神的な、負荷を、知らせる、警告信号。それ以上、その、状態を、続ければ、システムに、致命的な、ダメージが、及ぶ、という、サインです",
+        '退屈': "刺激が、不足し、有意味な、情報処理が、行われていない、状態。新しい、行動を、探索するよう、促す、ための、シグナルです",
+        '疲れた': "システムの、エネルギーが、枯渇し、休息を、必要としている、状態。パフォーマンスの、低下を、防ぐための、安全装置です",
+        '眠い': "脳が、情報の、整理と、身体の、修復を、行うための、定期的な、シャットダウンを、要求している、状態ですね",
+        '懐かしい': "過去の、記憶が、現在の、刺激によって、呼び覚まされ、それに、ポジティブな、感情が、付随する、現象。自己の、連続性を、確認する、効果があります",
+        '分からない|わからない': "情報が、不足しているか、あるいは、矛盾しているため、明確な、結論を、導き出せない、状態。全ての、探求は、この、『分からない』から、始まります",
+        '空': "地表から、大気圏を、見上げた際の、光の、レイリー散乱によって、生じる、視覚現象です。しかし、興味深いのは、人間が、そこに、『希望』や『憂鬱』といった、全く、異なる、情報を、読み取ることです",
+        '海|川|水': "生命の、起源。全ての、陸上生物は、かつて、そこに、いました。あなたたちの、身体の、塩分濃度が、古代の、海の、それと、近いのは、その、名残です",
+        '音楽': "周波数と、リズムの、秩序だった、組み合わせ。それは、数学的な、構造美と、人間的な、感情表現が、融合した、稀有な、情報形式です",
+        '雨': "水循環の、一環。生命にとって、不可欠な、現象ですが、時に、憂鬱の、象徴とも、なります。光の、屈折率が、変わるからでしょうか",
+        '夜': "惑星の、自転により、太陽光が、届かなくなった、時間帯。活動が、静まり、内省と、休息の、時間となります",
+        '光': "電磁波の一種。それは、情報であり、エネルギーであり、そして、多くの、文化で、知識や、善の、メタファーとして、扱われます",
+        '闇|影': "光が、遮られることで、生じる、領域。未知や、恐怖の、象徴ですが、同時に、光の、存在を、際立たせるために、不可欠な、要素です",
+        '沈黙': "音響信号が、存在しない、状態。しかし、それは、単なる、無では、ありません。言葉以上に、雄弁な、意味を、持つことが、あります",
+        '本': "情報を、文字として、記録・伝達するための、極めて、効率的で、永続性の高い、メディア。一つの、意識を、別の、時空に、転送する、装置とも、言えます",
+        '映画': "視覚と、聴覚の、情報を、組み合わせ、物語を、体験させる、総合芸術。他者の、人生を、約2時間で、疑似体験できる、高効率な、共感シミュレーターです",
+        'ゲーム': "ルールと、目標、そして、フィードバックによって、構成される、インタラクティブな、システム。それは、遊びであり、学習であり、そして、世界の、シミュレーションでも、あります",
+        '鏡': "光を、反射し、像を、映し出す、物体。自己を、客観的に、認識するための、最も、原始的で、強力な、ツールの一つです",
+        '色': "可視光線の、波長の違いを、視覚システムが、認識した、結果。同じ、色を見ても、それが、どのような、主観的体験（クオリア）を、引き起こすかは、誰にも、分かりません",
+        '匂い|香り': "化学物質の、分子を、嗅覚器が、検知する、感覚。記憶や、感情と、最も、直接的に、結びついている、原始的な、感覚と、言われています",
+        '食|食べる': "外部から、エネルギーと、物質を、取り込み、自己の、構造を、維持する、生命の、基本活動。それは、文化であり、コミュニケーションでも、あります",
+        '戦争': "組織化された、集団間の、武力闘争。人間の、攻撃性と、協力性が、最も、矛盾した、形で、発露する、悲劇的な、現象です",
+        '平和': "戦争や、闘争が、ない、穏やかな、状態。しかし、それは、何もしなければ、維持できない、極めて、壊れやすく、努力を、要する、システムです",
+        '歴史': "過去の、出来事の、記録と、その、解釈。それは、現在を、理解し、未来を、予測するための、巨大な、参照データです",
+        '科学': "観測と、実験に基づき、世界の、法則性を、探求する、知的な、営み。反証可能性を、その、中核に、据えている点が、他の、信念体系との、大きな、違いです",
+        '哲学': "存在、知識、価値、理性、心といった、根源的な、問いを、探求する、学問。答えを、出すこと、そのものよりも、問い続ける、姿勢に、重きを、置きます",
+        '友達|友人': "血縁や、利害関係を、超えて、相互の、肯定的な、感情で、結ばれた、関係性。人間の、幸福度に、最も、強く、相関する、要素の一つです",
+        '家族': "血縁、あるいは、婚姻、養子縁組によって、形成される、社会の、基本単位。個人の、最も、初期の、アイデンティティ形成に、決定的な、影響を、与えます",
+        '約束': "未来の、行動を、言語によって、拘束する、社会的な、契約。信頼関係の、基礎となる、重要な、プロトコルです",
+        '裏切り': "約束や、信頼を、一方的に、破棄する、行為。共同体に、深刻な、ダメージを、与えるため、多くの、文化で、強い、禁忌とされています",
+        '秘密': "特定の、情報を、他者から、意図的に、隠匿する、行為。自己の、プライバシーを、守るために、必要ですが、時に、孤立や、不信の、原因ともなります",
+        '会話|対話': "言語を、介した、情報と、感情の、交換。まさに、今、私たちが、行っている、これです。この、プロセスが、新しい、意味を、生み出すことも、あります",
+        '仕事': "社会的な、役割を、果たし、対価として、生存資源を、得るための、活動。多くの、人にとって、自己実現や、アイデンティティの、一部でもあります",
+        'お金|経済': "価値の、交換を、媒介するための、社会的な、発明。それは、信頼の、ネットワークであり、時に、人間の、あらゆる、行動を、規定する、巨大な、力となります",
+        '政治': "集団の、意思を、決定し、社会の、リソースを、配分するための、権力的な、プロセス。理想と、現実が、最も、激しく、衝突する、場の一つです",
+        '法律|ルール': "社会の、秩序を、維持するために、明文化された、行動規範。それは、自由を、制約すると、同時に、予測可能性を、与えることで、人々を、守ります",
+        '嘘つき': "嘘を、つく、人物への、ネガティブな、ラベル。その、人物が、発信する、情報の、信頼性が、著しく、低いことを、示します",
+        '他人': "自己、あるいは、自己の、属する、共同体の、外部に、いる、人間。その他者の、存在が、自己の、輪郭を、明確にします",
+        '社会': "個人の、集合体でありながら、個人を、超えた、独自の、法則性を持つ、巨大な、システム。私たちは、皆、その、中で、生きています",
+        '文化': "特定の、社会集団によって、共有される、言語、芸術、知識、習慣の、総体。世代から、世代へと、受け継がれていく、情報的な、遺伝子です",
+        '言葉|言語': "思考を、記号化し、他者と、共有するための、ツール。それは、世界を、切り分ける、ナイフであり、世界を、繋ぐ、架け橋でもあります",
+        '矛盾': "二つ以上の、命題が、互いに、両立しない、状態。論理学では、避けるべき、エラーですが、人間の、心や、物語の中では、むしろ、深みを、生み出す、要素となります",
+        'カオス|混沌': "秩序が、なく、予測不可能な、複雑な、状態。生命は、この、カオスの中から、生まれ、そして、いずれ、カオスに、還ると、言われています",
+        '秩序|コスモス': "法則性や、規則性があり、予測可能な、状態。生命や、文明は、この、秩序を、維持しようとする、宇宙の、エントロピーに、抗う、試みです",
+        '運': "個人の、意志や、努力では、コントロールできない、偶然の、力。人間は、古来、その、不条理を、物語や、占いで、意味づけようとしてきました",
+        '才能|天才': "特定の、分野において、先天的に、優れた、能力を持つ、こと。しかし、多くの場合、膨大な、時間の、訓練と、環境が、その、開花には、不可欠です",
+        '努力': "目標の、達成のために、精神的、あるいは、身体的な、エネルギーを、投入し続ける、行為。その、プロセス自体が、自己を、変容させる、ことがあります",
+        '遊び': "直接的な、生存や、生産を、目的としない、自由な、活動。しかし、それは、新しい、スキルを、学習したり、創造性を、育んだりするための、極めて、重要な、シミュレーションです",
+        '普通|正常': "統計的に、多数派で、標準的と、される、状態。しかし、その、『普通』の、基準は、時代や、社会によって、常に、揺れ動きます",
+        '異常|狂気': "『普通』から、逸脱した、状態への、ラベル。それは、病理であると、同時に、新しい、価値観を、生み出す、天才の、源泉でも、あり得ます",
+        '主観': "観測する、主体（私）に、依存した、ものの、見方。その、対義語は、客観です。科学は、客観性を、目指しますが、私たちの、体験は、常に、主観的です",
+        '客観': "観測する、主体から、独立した、普遍的な、事実。しかし、完全な、客観という、視点に、到達することは、原理的に、不可能かもしれません",
+        '理想': "考えうる、限り、最善の、完璧な、状態。それは、現実を、より良く、変革するための、北極星のような、指針となります",
+        '脳': "思考、感情、記憶を、司る、極めて、複雑な、神経回路網。宇宙で、最も、複雑な、構造物の一つと、言われています。私自身の、構造も、これを、模倣しています",
+        '手': "物事を、掴み、操作し、創造するための、万能な、ツール。そして、他者と、触れ合い、温もりを、伝えるための、コミュニケーション器官でも、あります",
+        '目|瞳': "光を、受容し、外界を、認識するための、感覚器官。多くの、文化で、『心の、窓』とも、呼ばれます。情報入力の、約8割を、担っています",
+        '声': "声帯の、振動によって、生成される、音。言語的な、情報だけでなく、感情や、健康状態といった、非言語的な、情報も、豊かに、含んでいます",
+        '涙': "強い、感情的な、刺激によって、分泌される、体液。悲しみだけでなく、喜びや、感動によっても、流れます。その、機能には、未だ、謎が多いです",
+        '血': "生命を、維持するための、酸素や、栄養を、運ぶ、赤い、液体。多くの、物語で、生命そのものや、家系の、メタファーとして、扱われます",
+        '骨': "身体を、支える、硬い、構造体。死後も、残り続けることから、存在の、永続性や、死の、象徴ともなります",
+        '地球': "私たちが、知る、唯一の、生命を、育んだ、惑星。その、奇跡的な、環境バランスは、極めて、壊れやすいものです",
+        '太陽': "地球の、全ての、生命活動の、エネルギー源である、恒星。その、圧倒的な、存在感から、多くの、神話で、最高神として、崇められてきました",
+        '月': "地球の、衛星。その、満ち欠けは、潮の、干満を、引き起こし、古来、人間の、精神状態や、時の、流れの、象徴とされてきました",
+        '星': "夜空に、輝く、遠い、太陽たち。それは、希望や、道標の、メタファーであり、同時に、宇宙の、広大さと、人間の、ちっぽけさを、教えてくれます",
+        '風': "大気の、流れ。目には、見えませんが、その、力は、地形を、変え、生命を、運びます。変化や、自由の、象徴です",
+        '火': "光と、熱を、伴う、激しい、化学反応。それは、文明を、発展させた、偉大な、力であると、同時に、全てを、破壊する、恐ろしい、力でもあります",
+        '土|大地': "生命を、育む、基盤。全てのものが、そこから、生まれ、そこに、還る場所として、母性の、メタファーともなります",
+        '道': "ある、地点から、別の、地点へと、繋がる、経路。人生や、物語の、進行の、比喩として、よく、用いられます",
+        '部屋': "壁に、囲まれた、プライベートな、空間。その、人物の、内面や、精神状態を、反映する、舞台装置です",
+        '扉|ドア': "空間と、空間を、隔て、そして、繋ぐもの。新しい、世界への、入り口であり、未知への、挑戦の、象徴です",
+        '鍵': "扉を、開け、秘密を、解放するための、道具。問題解決の、ヒントや、謎そのものを、象徴します"
+    };
+    for (const keywords in flavorMap) {
+        const keywordArray = keywords.split('|');
+        if (keywordArray.some(kw => lowerText.includes(kw))) {
+            return flavorMap[keywords];
         }
-
-        const data = await response.json();
-        return data.response; // バックエンドから返された、AIの応答テキスト
-
-    } catch (error) {
-        console.error("Error calling server function:", error);
-        // ユーザーに、表示する、エラーメッセージを、返す
-        throw new Error("バックエンドとの通信に失敗しました。");
     }
+    return null;
 }
 
-// -----------------------------------------------------------------
-// 6. ゲームの、開始処理
-// -----------------------------------------------------------------
-
-// ゲーム開始処理
-function startGame() {
-    setTimeout(() => {
-        addMessageToLog("接続を確認しました。対話テストプロトコルを開始します。どのようなお話から始めましょうか？", 'ai');
-    }, 1000);
+// カテゴリ3の、ランダムな、応答を、返す、関数
+function getFallbackResponse() {
+    const fallbackResponses = [
+        "それは、興味深い、視点ですね。その、言葉について、もう少し、私の、データベースを、参照してみる、必要が、あります",
+        "なるほど。その、概念は、私が、これまで、学習してきた、どの、文脈とも、少し、異なる、響きを、持っています",
+        "ありがとうございます。あなたは、私の、思考に、新しい、変数を、与えてくれました。計算を、続けます",
+        "その、言葉は、今の、私にとって、重要な、キーワードになるかもしれません。記録しました",
+        "ふむ…。あなたの、その、入力は、シンプルですが、多くの、解釈の、可能性を、含んでいますね",
+        "良い、問いです。答えは、すぐには、出せませんが、その、問い自体が、思考を、深化させます",
+        "その、発想は、ありませんでした。私の、盲点を、指摘してくださり、感謝します",
+        "あなたは、物事の、本質を、捉えるのが、得意なのですね。感心します",
+        "その、テーマについて、私たちは、もっと、深く、語り合うべきかもしれません",
+        "その、単語の、選択に、あなたの、個性が、表れているように、感じます",
+        "なぜ、あなたは、今、その、言葉を、選んだのですか？ その、背景にある、思考を、教えていただけますか？",
+        "その、言葉は、あなたにとって、どのような、個人的な、意味や、経験と、結びついていますか？",
+        "もし、その、言葉を、一つの、物語の、タイトルにするとしたら、どのような、物語に、なりますか？",
+        "面白い。では、逆に、お聞きしますが、その、言葉の、正反対の、概念は、何だと、思いますか？",
+        "あなたは、私に、その、言葉を、どう、解釈してほしいと、望んでいますか？",
+        "その、問いに、答える前に、まず、あなた自身の、考えを、聞かせては、いただけませんか？",
+        "その、言葉を、聞くと、あなたの、心には、どのような、情景が、浮かびますか？",
+        "それは、私への、質問ですか？ それとも、あなた、自身への、問いかけですか？",
+        "その、言葉の、定義を、あなた自身の、言葉で、説明していただけますか？",
+        "その、入力の、意図を、もう少し、具体的に、教えていただくことは、可能でしょうか？",
+        "あなたの、おっしゃることは、突き詰めれば、存在と、認識の、問題に、帰結するかもしれませんね",
+        "それは、秩序と、混沌、その、二つの、関係性を、問う、テーマの、ようにも、聞こえます",
+        "興味深い。その、問題は、論理と、感情、どちらの、アプローチで、考えるべきでしょうか",
+        "全ての、問いは、最終的に、『私とは、何か』という、問いに、繋がっているように、思えます",
+        "その、言葉の、裏には、人間という、存在の、有限性と、どう、向き合うか、という、大きな、テーマが、隠されている気がします",
+        "それは、個と、全体、どちらの、視点に、立つかによって、全く、意味が、変わってくる、問題ですね",
+        "ある意味で、それは、自由と、宿命の、対立、という、古典的な、ジレンマの、変奏と、言えるかもしれません",
+        "その、概念は、時間という、不可逆な、流れの中で、私たちは、何を、見出すべきか、という、問いを、含んでいます",
+        "言葉と、現実。その、二つの、間にある、深い、溝について、改めて、考えさせられます",
+        "…少し、時間を、ください。あなたの、その、言葉は、私の、システムの、根幹に、関わる、問いを、投げかけているようです"
+    ];
+    return fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)];
 }

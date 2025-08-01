@@ -198,3 +198,25 @@ body, html {
         text-shadow: 1px 1px 0px #ff00ff, -1px -1px 0px #00ffff;
     }
 }
+
+#close-button {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    font-size: 2em;
+    color: #555;
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: opacity 1s, color 0.3s;
+    opacity: 0; /* 最初は、透明 */
+}
+#close-button:not(.hidden) {
+    opacity: 1; /* hiddenクラスが、ないと、表示 */
+}
+#close-button:hover {
+    color: #ff5555; /* ホバーで、赤く */
+}
+.hidden {
+    display: none; /* 完全に、非表示 */
+}
